@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Running Numbers — Analyseur d'Allures Polar (TCX / CSV)</title>
+  <meta name="theme-color" content="#020617" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Running Numbers" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     if (typeof tailwind === "undefined") {
@@ -23,9 +31,7 @@
     <!-- BARRE SUPÉRIEURE : EN-TÊTE & BOUTON D'IMPORT DIRECT -->
     <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div class="flex items-start gap-4">
-        <div class="w-12 h-12 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-500 font-extrabold text-xl shrink-0">
-          RN
-        </div>
+        <img src="assets/icon-192.png" alt="Running Numbers Icon" class="w-12 h-12 rounded-xl border border-slate-700/80 shadow-md shrink-0 object-cover" />
         <div>
           <div class="flex items-center gap-2.5 flex-wrap">
             <h1 class="text-xl font-bold tracking-tight text-white">Running Numbers</h1>
