@@ -120,6 +120,10 @@ for f in unique_files:
                             "dur": round(dt_sec / 2.0, 1)
                         })
 
+        if total_dist < 500 or total_time < 120:
+            print(f"Ignoré (distance < 500m) : {os.path.basename(f)} ({total_dist:.0f}m)")
+            continue
+
         avg_spd = (total_dist / 1000.0) / (total_time / 3600.0) if total_time > 0 else 0
         avg_hr = int(round(sum(hr_all) / len(hr_all))) if hr_all else 0
         max_hr = max(hr_all) if hr_all else 0

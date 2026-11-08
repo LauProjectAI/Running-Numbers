@@ -45,6 +45,10 @@
     const thresholdBlocks = laps.filter(
       (l) => l.durationSec >= 170 && l.durationSec <= 950 && l.speedKmh >= 9.6
     );
+    // Recherche de kilomètres en SV1 / Endurance active (9.0 à 9.6 km/h avec FC 144-156)
+    const sv1Blocks = laps.filter(
+      (l) => l.durationSec >= 300 && l.speedKmh >= 9.05 && l.avgHr >= 144 && l.avgHr <= 157
+    );
 
     // Détection de dérive cardiaque / anomalie capteur (ex: FC moy > 162 pour allure < 9.5 km/h)
     const isHighDrift = session.avgHr >= 162 && session.avgSpeedKmh <= 9.6;
@@ -53,7 +57,6 @@
     let badgeColor = "sky";
 
     if (thresholdBlocks.length >= 2) {
-      // Vérifie si ce sont des laps manuels de fractionné au seuil
       const manualBlocks = thresholdBlocks.filter((l) => l.trigger === "Manual");
       if (manualBlocks.length >= 2) {
         const avgDurMin = Math.round(
@@ -75,6 +78,14 @@
         label = `Tempo / Progressif (${distKm.toFixed(1)} km)`;
         badgeColor = "emerald";
       }
+    } else if (sv1Blocks.length >= 4 || (session.avgSpeedKmh >= 9.0 && session.avgHr >= 145 && !isHighDrift)) {
+      label = `Endurance Active / SV1 (${distKm.toFixed(1)} km @ ${formatPace(
+        3600 / session.avgSpeedKmh
+      )}/km)`;
+      badgeColor = "emerald";
+    } else if (sv1Blocks.length >= 2) {
+      label = `EF + Blocs SV1 (${sv1Blocks.length} km soutenus)`;
+      badgeColor = "emerald";
     } else if (distKm >= 12.5) {
       label = `Sortie Longue EF / SV1 (${distKm.toFixed(1)} km)`;
       badgeColor = "emerald";
@@ -121,12 +132,11 @@
 
     const detectedFcRest = 52;
 
-    // 2. Détection de la VMA :
-    // Combinaison des répétitions de 30s (VMA courte ~100-104% VMA), des blocs de seuil (82-85% VMA)
-    // et du rendement aérobie en EF (67-70% VMA)
+    // 2. Détection de la VMA pondérée par la forme récente :
     const shortSpeeds = [];
     const thresholdSpeeds = [];
     const efSpeeds = [];
+    const sv1Speeds = [];
 
     pool.forEach((s) => {
       (s.laps || []).forEach((l) => {
@@ -134,6 +144,8 @@
           shortSpeeds.push(l.speedKmh);
         } else if (l.durationSec >= 240 && l.speedKmh >= 9.9 && l.avgHr >= 150 && l.avgHr <= 165) {
           thresholdSpeeds.push(l.speedKmh);
+        } else if (l.durationSec >= 300 && l.avgHr >= 145 && l.avgHr <= 154 && l.speedKmh >= 8.9) {
+          sv1Speeds.push(l.speedKmh);
         } else if (l.durationSec >= 300 && l.avgHr >= 132 && l.avgHr <= 143 && l.speedKmh >= 8.0) {
           efSpeeds.push(l.speedKmh);
         }
@@ -145,26 +157,43 @@
       shortSpeeds.sort((a, b) => b - a);
       const topShort = shortSpeeds.slice(0, Math.min(4, shortSpeeds.length));
       const avgShort = topShort.reduce((a, b) => a + b, 0) / topShort.length;
-      // Les 30s intégrés en début de séance seuil sont courus autour de 102-104% VMA
       estimates.push(avgShort / 1.035);
     }
     if (thresholdSpeeds.length > 0) {
       thresholdSpeeds.sort((a, b) => b - a);
       const topThresh = thresholdSpeeds.slice(0, Math.min(5, thresholdSpeeds.length));
       const avgThresh = topThresh.reduce((a, b) => a + b, 0) / topThresh.length;
-      // Blocs de 6 à 10 min à ~158 bpm (~83% FC réserve) correspondent à ~81-82% VMA
       estimates.push(avgThresh / 0.815);
+    }
+    if (sv1Speeds.length > 0) {
+      const avgSv1 = sv1Speeds.reduce((a, b) => a + b, 0) / sv1Speeds.length;
+      estimates.push(avgSv1 / 0.73);
     }
     if (efSpeeds.length > 0) {
       const avgEf = efSpeeds.reduce((a, b) => a + b, 0) / efSpeeds.length;
-      // EF à ~137 bpm (~67% FC réserve) correspond à ~67.5% VMA
-      estimates.push(avgEf / 0.675);
+      estimates.push(avgEf / 0.68);
     }
 
-    let detectedVma = 13.0;
-    if (estimates.length > 0) {
-      detectedVma = estimates.reduce((a, b) => a + b, 0) / estimates.length;
-    }
+    // Évaluation spécifique sur les 6 dernières séances pour refléter l'état de forme actuel
+    const recentPool = pool.slice(-6);
+    const recentVmaEstimates = [];
+    const hrr = Math.max(40, detectedFcMax - detectedFcRest);
+    recentPool.forEach((s) => {
+      if (s.avgHr >= 130 && s.avgSpeedKmh >= 8.0) {
+        const pctHrr = Math.max(0.5, Math.min(0.95, (s.avgHr - detectedFcRest) / hrr));
+        // À %HRR donné, le %VMA correspondant est voisin de pctHrr * 0.99
+        recentVmaEstimates.push(s.avgSpeedKmh / (pctHrr * 0.99));
+      }
+    });
+
+    let histVma = estimates.length > 0 ? estimates.reduce((a, b) => a + b, 0) / estimates.length : 12.8;
+    let recentVma =
+      recentVmaEstimates.length > 0
+        ? recentVmaEstimates.reduce((a, b) => a + b, 0) / recentVmaEstimates.length
+        : histVma;
+
+    // Pondération 55% forme récente / 45% potentiel pic
+    let detectedVma = histVma * 0.45 + recentVma * 0.55;
     detectedVma = Math.round(detectedVma * 10) / 10;
 
     return {
@@ -294,15 +323,32 @@
       }
     });
 
-    // Comparaison moitié initiale vs moitié récente pour déterminer la Phase (Ascendante / Descendante)
+    // Détection d'une éventuelle coupure (> 20 jours sans séance) pour analyser le cycle actuel
+    let breakIdx = -1;
+    for (let i = 1; i < timeline.length; i++) {
+      const d1 = Date.parse(timeline[i - 1].date);
+      const d2 = Date.parse(timeline[i].date);
+      if ((d2 - d1) / (1000 * 3600 * 24) >= 20) {
+        breakIdx = i;
+      }
+    }
+
     let trendPct = 0;
     let deltaEfSec = 0;
     let deltaSeuilSec = 0;
+    let cycleInfo = null;
 
     if (timeline.length >= 2) {
-      const half = Math.max(1, Math.floor(timeline.length / 2));
-      const firstHalf = timeline.slice(0, half);
-      const secondHalf = timeline.slice(timeline.length - half);
+      // Si une coupure est détectée et qu'il y a au moins 4 séances de reprise,
+      // on évalue la dynamique sur le bloc de reprise actuel tout en gardant la référence pré-coupure
+      const evalSlice =
+        breakIdx !== -1 && timeline.length - breakIdx >= 4
+          ? timeline.slice(breakIdx)
+          : timeline;
+
+      const half = Math.max(1, Math.floor(evalSlice.length / 2));
+      const firstHalf = evalSlice.slice(0, half);
+      const secondHalf = evalSlice.slice(evalSlice.length - half);
 
       const eff1 = firstHalf.reduce((a, b) => a + b.normEfSpeed, 0) / firstHalf.length;
       const eff2 = secondHalf.reduce((a, b) => a + b.normEfSpeed, 0) / secondHalf.length;
@@ -311,19 +357,25 @@
       const ef2 = secondHalf.reduce((a, b) => a + b.efPaceSec, 0) / secondHalf.length;
       deltaEfSec = Math.round(ef2 - ef1);
 
-      const threshPts = timeline.filter((t) => t.hasThreshBlocks && !t.isHighDrift);
-      const hasDriftAtEnd = timeline[timeline.length - 1].isHighDrift;
+      const s1 = firstHalf.reduce((a, b) => a + b.seuilPaceSec, 0) / firstHalf.length;
+      const s2 = secondHalf.reduce((a, b) => a + b.seuilPaceSec, 0) / secondHalf.length;
+      deltaSeuilSec = Math.round(s2 - s1);
+      trendPct = ((eff2 - eff1) / eff1) * 100;
 
-      if (!hasDriftAtEnd && threshPts.length >= 2) {
-        const sFirst = threshPts[0].seuilPaceSec;
-        const sLast = threshPts[threshPts.length - 1].seuilPaceSec;
-        deltaSeuilSec = Math.round(sLast - sFirst);
-        trendPct = ((sFirst - sLast) / sFirst) * 100;
-      } else {
-        const s1 = firstHalf.reduce((a, b) => a + b.seuilPaceSec, 0) / firstHalf.length;
-        const s2 = secondHalf.reduce((a, b) => a + b.seuilPaceSec, 0) / secondHalf.length;
-        deltaSeuilSec = Math.round(s2 - s1);
-        trendPct = ((eff2 - eff1) / eff1) * 100;
+      if (breakIdx !== -1 && timeline.length - breakIdx >= 4) {
+        const preBreak = timeline.slice(0, breakIdx).filter((t) => !t.isHighDrift);
+        const postBreak = timeline.slice(breakIdx);
+        const preEff =
+          preBreak.reduce((a, b) => a + b.normEfSpeed, 0) / Math.max(1, preBreak.length);
+        const postEff =
+          postBreak.reduce((a, b) => a + b.normEfSpeed, 0) / postBreak.length;
+        cycleInfo = {
+          hasBreak: true,
+          breakStart: timeline[breakIdx - 1].date,
+          breakEnd: timeline[breakIdx].date,
+          reboundCount: postBreak.length,
+          vsPeakPct: Math.round(((postEff - preEff) / preEff) * 1000) / 10
+        };
       }
     }
 
@@ -601,6 +653,7 @@
       trendPct: Math.round(trendPct * 10) / 10,
       deltaEfSec,
       deltaSeuilSec,
+      cycleInfo,
       paces,
       predictions,
       timeline

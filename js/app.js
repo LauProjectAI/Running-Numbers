@@ -301,18 +301,31 @@
     refreshUI();
   }
 
-  function setDriftFilter(excludeHighDrift) {
+  let currentPeriodMode = "clean";
+
+  function setPeriodFilter(mode) {
+    currentPeriodMode = mode;
     excludedIds.clear();
-    if (excludeHighDrift) {
+    if (mode === "clean") {
       allSessions.forEach((s) => {
         const meta = window.PaceEngine.classifySession(s);
         if (meta.isHighDrift) {
           excludedIds.add(s.id);
         }
       });
+    } else if (mode === "rebound") {
+      allSessions.forEach((s) => {
+        if (s.date < "2026-10-01") {
+          excludedIds.add(s.id);
+        }
+      });
     }
     saveState();
     refreshUI();
+  }
+
+  function setDriftFilter(excludeHighDrift) {
+    setPeriodFilter(excludeHighDrift ? "clean" : "all");
   }
 
   function selectZoneChart(filter) {
@@ -344,23 +357,33 @@
       else btnClearCustom.classList.add("hidden");
     }
 
-    // 1. Mise à jour des boutons de filtre dérive
-    const hasDriftExcluded = excludedIds.size > 0;
-    const btnAllSessions = document.getElementById("btn-filter-all");
+    // 1. Mise à jour des boutons de filtre période
+    const btnRebound = document.getElementById("btn-filter-rebound");
     const btnCleanSessions = document.getElementById("btn-filter-clean");
-    if (btnAllSessions && btnCleanSessions) {
-      btnAllSessions.textContent = `Toutes les séances (${allSessions.length})`;
-      if (!hasDriftExcluded) {
-        btnAllSessions.className =
-          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-red-500 text-white shadow-sm";
-        btnCleanSessions.className =
-          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
-      } else {
-        btnCleanSessions.className =
-          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-emerald-500 text-white shadow-sm";
-        btnAllSessions.className =
-          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
-      }
+    const btnAllSessions = document.getElementById("btn-filter-all");
+    const reboundCount = allSessions.filter((s) => s.date >= "2026-10-01").length;
+    const cleanCount = allSessions.filter(
+      (s) => !window.PaceEngine.classifySession(s).isHighDrift
+    ).length;
+
+    if (btnRebound) btnRebound.textContent = `Cycle Oct–Nov (${reboundCount})`;
+    if (btnCleanSessions) btnCleanSessions.textContent = `↗ Août–Nov (${cleanCount})`;
+    if (btnAllSessions) btnAllSessions.textContent = `Toutes (${allSessions.length})`;
+
+    const activeBtnClass =
+      "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-emerald-500 text-white shadow-sm";
+    const inactiveBtnClass =
+      "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white";
+
+    if (btnRebound && btnCleanSessions && btnAllSessions) {
+      btnRebound.className =
+        currentPeriodMode === "rebound" ? activeBtnClass : inactiveBtnClass;
+      btnCleanSessions.className =
+        currentPeriodMode === "clean" ? activeBtnClass : inactiveBtnClass;
+      btnAllSessions.className =
+        currentPeriodMode === "all"
+          ? "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-red-500 text-white shadow-sm"
+          : inactiveBtnClass;
     }
 
     // 2. Mise à jour du Bandeau de Tendance
@@ -380,20 +403,27 @@
         "lg:col-span-2 bg-slate-900/90 border border-emerald-500/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between gap-4";
       badge.className =
         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30";
-      badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PHASE ASCENDANTE (${signStr} d'efficacité cardio)`;
-      titleEl.textContent =
-        "Progression du rendement aérobie et des allures de Seuil / EF";
-      const gainSec = Math.abs(res.deltaSeuilSec || res.deltaEfSec || 6);
-      descEl.innerHTML = `Sur les séances sélectionnées, à fréquence cardiaque comparable (~158 bpm au seuil / ~138 bpm en EF), votre allure progresse d'environ <strong>${gainSec} sec/km</strong> (ex. blocs de seuil passant de 5:56/km début août à 5:41/km début septembre).`;
+      const gainSec = Math.abs(res.deltaEfSec || res.deltaSeuilSec || 5);
+      if (res.cycleInfo && res.cycleInfo.hasBreak) {
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PHASE ASCENDANTE DE REPRISE (${signStr} depuis le 24/10)`;
+        titleEl.textContent =
+          "Rebond aérobie confirmé sur vos 6 sorties d'octobre–novembre";
+        descEl.innerHTML = `Après la coupure du 15/09 au 24/10 (${res.cycleInfo.vsPeakPct}% vs votre pic de septembre), votre cycle actuel remonte rapidement : gain de <strong>-${gainSec} sec/km</strong> à FC égale entre fin octobre et votre sortie active de <strong>10.48 km à 6:36/km (147 bpm) le 07/11</strong>. Votre VMA actuelle s'établit à <strong>${res.activePhys.vma.toFixed(1)} km/h</strong>.`;
+      } else {
+        badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>PHASE ASCENDANTE (${signStr} d'efficacité cardio)`;
+        titleEl.textContent =
+          "Progression du rendement aérobie et des allures sur la période";
+        descEl.innerHTML = `Sur les séances sélectionnées, à fréquence cardiaque comparable, votre allure progresse d'environ <strong>-${gainSec} sec/km</strong> (dernière sortie : 10.48 km à 6:36/km pour 147 bpm le 07/11).`;
+      }
     } else {
       banner.className =
         "lg:col-span-2 bg-slate-900/90 border border-amber-500/40 rounded-2xl p-5 shadow-sm flex flex-col justify-between gap-4";
       badge.className =
         "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30";
-      badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>PHASE DESCENDANTE / DÉRIVE (${signStr})`;
+      badge.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>PHASE DE REPRISE / TRANSITION (${signStr})`;
       titleEl.textContent =
-        "Dérive cardiaque détectée en fin de période (fatigue ou chaleur)";
-      descEl.innerHTML = `Le croisement Vitesse / FC montre une hausse de la fréquence cardiaque sur la fin de période (notamment la sortie du <strong>15/09 à 17h49</strong> avec FC moy. à 168 bpm pour 6:25/km). Vous pouvez exclure cette séance via le filtre en haut pour isoler votre progression de fond.`;
+        "Transition post-coupure (octobre–novembre vs pic de septembre)";
+      descEl.innerHTML = `Vos allures actuelles reflètent la reprise après la coupure d'octobre, avec une excellente relance le <strong>07/11 (10.48 km @ 6:36/km, 147 bpm)</strong>.`;
     }
 
     // 3. Panneau Physiologique (VMA, FC Max, FC Repos)
@@ -647,15 +677,31 @@
       `;
     }
 
+    const stepLabel = timeline.length > 13 ? 2 : 1;
     timeline.forEach((pt, i) => {
       const x = xForIdx(i);
       const shortDate = pt.date.slice(8, 10) + "/" + pt.date.slice(5, 7);
+      // Détection d'une coupure > 20 jours pour tracer un repère visuel
+      if (i > 0) {
+        const gapDays =
+          (Date.parse(pt.date) - Date.parse(timeline[i - 1].date)) /
+          (1000 * 3600 * 24);
+        if (gapDays >= 20) {
+          const midX = (xForIdx(i - 1) + x) / 2;
+          html += `
+            <line x1="${midX}" y1="${padTop}" x2="${midX}" y2="${250 - padBottom}" stroke="#64748b" stroke-dasharray="3 3" stroke-width="1.5" />
+            <text x="${midX}" y="${padTop - 6}" text-anchor="middle" fill="#94a3b8" class="text-xs italic">Reprise Oct</text>
+          `;
+        }
+      }
       html += `
         <line x1="${x}" y1="${padTop}" x2="${x}" y2="${250 - padBottom}" stroke="#1e293b" stroke-width="1" opacity="0.5" />
-        <text x="${x}" y="${250 - 8}" text-anchor="middle" fill="${
-        pt.isHighDrift ? "#f87171" : "#94a3b8"
-      }" class="text-xs font-mono">${shortDate}</text>
       `;
+      if (i % stepLabel === 0 || i === timeline.length - 1) {
+        html += `<text x="${x}" y="${250 - 8}" text-anchor="middle" fill="${
+          pt.isHighDrift ? "#f87171" : "#94a3b8"
+        }" class="text-xs font-mono">${shortDate}</text>`;
+      }
     });
 
     const styles = {
@@ -832,6 +878,7 @@
     resetPhysiologyToAuto,
     toggleSessionSelection,
     setDriftFilter,
+    setPeriodFilter,
     selectZoneChart
   };
 

@@ -45,14 +45,17 @@
         </div>
       </div>
 
-      <!-- Actions : Filtre dérive + Bouton d'Import Direct -->
+      <!-- Actions : Filtre période/dérive + Bouton d'Import Direct -->
       <div class="flex flex-wrap items-center gap-3">
-        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1" title="Filtrer les séances à forte dérive cardiaque">
-          <button id="btn-filter-all" onclick="window.RunningApp.setDriftFilter(false)" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
-            Toutes les séances
+        <div class="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1" title="Filtrer par période ou exclure la dérive cardiaque">
+          <button id="btn-filter-rebound" onclick="window.RunningApp.setPeriodFilter('rebound')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+            Cycle Oct–Nov (6)
           </button>
-          <button id="btn-filter-clean" onclick="window.RunningApp.setDriftFilter(true)" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-emerald-500 text-white shadow-sm">
-            ↗ Hors dérive cardio (15/09)
+          <button id="btn-filter-clean" onclick="window.RunningApp.setPeriodFilter('clean')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-emerald-500 text-white shadow-sm">
+            ↗ Août–Nov (17)
+          </button>
+          <button id="btn-filter-all" onclick="window.RunningApp.setPeriodFilter('all')" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+            Toutes (18)
           </button>
         </div>
 
@@ -304,8 +307,8 @@
             <span class="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-semibold">Calibré</span>
           </div>
           <ul class="text-xs text-slate-300 space-y-1.5 leading-relaxed">
-            <li>• <strong>EF (134–141 bpm)</strong> : ~6:44 à 7:02/km sur vos footings réguliers.</li>
-            <li>• <strong>Blocs Seuil (156–160 bpm)</strong> : progression de <span class="text-amber-400 font-mono">5:56/km</span> (08/08) → <span class="text-amber-400 font-mono">5:48/km</span> (26/08) → <span class="text-emerald-400 font-mono font-semibold">5:41/km</span> (02/09 sur 2×10 min).</li>
+            <li>• <strong>Cycle Reprise Oct–Nov (6 sorties)</strong> : progression EF de <span class="text-sky-400 font-mono">7:09/km</span> à <span class="text-sky-400 font-mono">6:57/km</span> (@ 136 bpm) et sortie SV1 de 10.5 km à <span class="text-emerald-400 font-mono font-semibold">6:36/km</span> (07/11 @ 147 bpm).</li>
+            <li>• <strong>Pic Seuil Août–Sept</strong> : progression de <span class="text-amber-400 font-mono">5:56/km</span> (08/08) → <span class="text-emerald-400 font-mono font-semibold">5:41/km</span> (02/09 sur 2×10 min).</li>
             <li>• <strong>Répétitions 30s VMA</strong> : mesurées entre <span class="text-rose-400 font-mono font-semibold">4:19/km</span> et <span class="text-rose-400 font-mono">4:39/km</span> (13.3–13.9 km/h).</li>
           </ul>
         </div>
