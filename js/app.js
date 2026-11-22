@@ -7,6 +7,7 @@
   const STORAGE_KEY_PARAMS = "running_numbers_user_params_v1";
   const STORAGE_KEY_CUSTOM_SESSIONS = "running_numbers_custom_sessions_v1";
   const STORAGE_KEY_EXCLUDED_IDS = "running_numbers_excluded_ids_v1";
+  const STORAGE_KEY_TAB = "running_numbers_active_tab_v1";
 
   let allSessions = [];
   let defaultIds = new Set();
@@ -17,6 +18,7 @@
     vma: null
   };
   let currentChartFilter = "all";
+  let currentMainTab = "dashboard";
   let lastAnalysis = null;
 
   function init() {
@@ -38,11 +40,16 @@
       if (savedParams) {
         userParams = { ...userParams, ...JSON.parse(savedParams) };
       }
+      const savedTab = localStorage.getItem(STORAGE_KEY_TAB);
+      if (savedTab === "plans" || savedTab === "dashboard") {
+        currentMainTab = savedTab;
+      }
     } catch (e) {
       console.warn("Erreur lecture localStorage params:", e);
     }
 
     setupEventListeners();
+    applyMainTabUI();
     refreshUI();
   }
 
@@ -326,6 +333,46 @@
 
   function setDriftFilter(excludeHighDrift) {
     setPeriodFilter(excludeHighDrift ? "clean" : "all");
+  }
+
+  function applyMainTabUI() {
+    const viewDash = document.getElementById("view-dashboard");
+    const viewPlans = document.getElementById("view-plans");
+    const tabDash = document.getElementById("nav-tab-dashboard");
+    const tabPlans = document.getElementById("nav-tab-plans");
+
+    const activeCls =
+      "px-4 py-2 rounded-lg text-xs font-bold transition-all bg-red-500 text-white shadow-sm cursor-pointer text-center";
+    const inactiveCls =
+      "px-4 py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white cursor-pointer text-center";
+
+    if (currentMainTab === "plans") {
+      if (viewDash) viewDash.classList.add("hidden");
+      if (viewPlans) viewPlans.classList.remove("hidden");
+      if (tabDash) tabDash.className = inactiveCls;
+      if (tabPlans) tabPlans.className = activeCls;
+    } else {
+      if (viewDash) viewDash.classList.remove("hidden");
+      if (viewPlans) viewPlans.classList.add("hidden");
+      if (tabDash) tabDash.className = activeCls;
+      if (tabPlans) tabPlans.className = inactiveCls;
+    }
+  }
+
+  function switchMainTab(tabName) {
+    currentMainTab = tabName === "plans" ? "plans" : "dashboard";
+    try {
+      localStorage.setItem(STORAGE_KEY_TAB, currentMainTab);
+    } catch (e) {}
+    applyMainTabUI();
+    if (
+      currentMainTab === "plans" &&
+      lastAnalysis &&
+      window.TrainingPlans &&
+      typeof window.TrainingPlans.render === "function"
+    ) {
+      window.TrainingPlans.render(lastAnalysis.activePhys);
+    }
   }
 
   function selectZoneChart(filter) {
@@ -623,6 +670,11 @@
 
     // 8. Tableau des séances Polar
     renderSessionsTable();
+
+    // 9. Mise à jour synchronisée de l'onglet Mes Plans 2027
+    if (window.TrainingPlans && typeof window.TrainingPlans.render === "function") {
+      window.TrainingPlans.render(res.activePhys);
+    }
   }
 
   function renderChart() {
@@ -879,7 +931,8 @@
     toggleSessionSelection,
     setDriftFilter,
     setPeriodFilter,
-    selectZoneChart
+    selectZoneChart,
+    switchMainTab
   };
 
   document.addEventListener("DOMContentLoaded", init);

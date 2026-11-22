@@ -28,8 +28,8 @@
 
   <div class="max-w-7xl mx-auto space-y-6">
 
-    <!-- BARRE SUPÉRIEURE : EN-TÊTE -->
-    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <!-- BARRE SUPÉRIEURE : EN-TÊTE & ONGLETS -->
+    <header class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div class="flex items-start gap-4">
         <img src="assets/icon-192.png" alt="Running Numbers Icon" class="w-12 h-12 rounded-xl border border-slate-700/80 shadow-md shrink-0 object-cover" />
         <div>
@@ -44,7 +44,20 @@
           </p>
         </div>
       </div>
+
+      <!-- Navigation par onglets -->
+      <nav class="grid grid-cols-2 sm:inline-flex bg-slate-950 border border-slate-800 rounded-xl p-1 gap-1 self-stretch sm:self-start lg:self-auto" aria-label="Navigation principale">
+        <button id="nav-tab-dashboard" onclick="window.RunningApp.switchMainTab('dashboard')" class="px-4 py-2 rounded-lg text-xs font-bold transition-all bg-red-500 text-white shadow-sm cursor-pointer text-center">
+          Tableau de bord Polar
+        </button>
+        <button id="nav-tab-plans" onclick="window.RunningApp.switchMainTab('plans')" class="px-4 py-2 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white cursor-pointer text-center">
+          Mes Plans 2027
+        </button>
+      </nav>
     </header>
+
+    <!-- ONGLET 1 : TABLEAU DE BORD POLAR -->
+    <div id="view-dashboard" class="space-y-6">
 
     <!-- 1. PARAMÈTRES PHYSIOLOGIQUES (VMA, FC MAX, FC REPOS) -->
     <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
@@ -366,12 +379,145 @@
       </div>
     </section>
 
+    </div><!-- /#view-dashboard -->
+
+    <!-- ONGLET 2 : MES PLANS 2027 -->
+    <div id="view-plans" class="hidden space-y-6">
+
+      <!-- Bandeau d'en-tête Plans 2027 & Synchro VMA -->
+      <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2 flex-wrap">
+              <span>Mes Plans d'Entraînement 2026 / 2027</span>
+              <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                Allures synchronisées Polar
+              </span>
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">
+              Programmes Campus Coach reconstitués • Toutes les allures et FC cibles s'adaptent en direct à votre VMA
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <!-- Contrôle rapide VMA synchronisé -->
+            <div class="flex items-center gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5">
+              <span class="text-xs font-semibold text-slate-300">VMA :</span>
+              <button onclick="window.RunningApp.adjustParam('vma', -0.1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition active:scale-95">-</button>
+              <span id="plans-vma-value" class="text-sm font-extrabold text-white font-mono min-w-[2.5rem] text-center">12.7</span>
+              <button onclick="window.RunningApp.adjustParam('vma', 0.1)" class="w-7 h-7 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-white transition active:scale-95">+</button>
+              <span class="text-xs text-slate-400">km/h</span>
+            </div>
+
+            <button onclick="window.TrainingPlans.exportCurrentPlanCSV()" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white transition flex items-center gap-2 shadow-sm cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Exporter CSV (Excel)</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="plans-fc-summary" class="text-xs text-emerald-400 font-medium"></div>
+
+        <!-- Grille des 8 repères d'allures dynamiques -->
+        <div id="plans-zones-strip" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2"></div>
+      </section>
+
+      <!-- Sélecteur des 4 Programmes -->
+      <section class="space-y-2.5">
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+          Choisir un programme (3 séances/semaine)
+        </h3>
+        <div id="plans-selector" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+      </section>
+
+      <!-- Carte principale du programme sélectionné -->
+      <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <h3 id="plans-active-title" class="text-base font-bold text-white"></h3>
+            <p id="plans-active-subtitle" class="text-xs text-slate-400"></p>
+          </div>
+
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3 shrink-0">
+            <div class="bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 space-y-1.5 min-w-[200px]">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-400">Progression</span>
+                <span id="plans-progress-text" class="font-bold text-emerald-400">0 / 0</span>
+              </div>
+              <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                <div id="plans-progress-bar" class="h-full bg-emerald-500 rounded-full transition-all duration-300" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <button onclick="window.TrainingPlans.resetCurrentPlanProgress()" class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer self-start sm:self-auto">
+              Réinitialiser
+            </button>
+          </div>
+        </div>
+
+        <!-- Filtres par type de séance -->
+        <div id="plans-category-filters" class="flex flex-wrap gap-2"></div>
+
+        <!-- Vue Cartes Smartphone (< md) -->
+        <div id="plans-mobile-list" class="space-y-3 md:hidden"></div>
+
+        <!-- Vue Tableau Desktop (md+) -->
+        <div class="hidden md:block overflow-x-auto rounded-xl border border-slate-800 bg-slate-950">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="border-b border-slate-800 bg-slate-900/70 text-xs font-semibold text-slate-400 uppercase">
+                <th class="py-3 px-4 w-12">Fait</th>
+                <th class="py-3 px-4">Sem.</th>
+                <th class="py-3 px-4">Séance</th>
+                <th class="py-3 px-4">Nom de la séance</th>
+                <th class="py-3 px-4">Structure détaillée</th>
+                <th class="py-3 px-4">Durée</th>
+                <th class="py-3 px-4">Allures &amp; FC visées</th>
+              </tr>
+            </thead>
+            <tbody id="plans-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Encart 3 règles d'or 2026/2027 -->
+      <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-3">
+        <h3 class="text-sm sm:text-base font-bold text-white">
+          3 règles d'or issues de vos historiques 2024–2026 pour réussir 2026/2027
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs text-slate-300 leading-relaxed">
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-1">
+            <div class="font-bold text-amber-400">1. Qualité &amp; Sortie Longue le matin</div>
+            <p class="text-slate-400">
+              Vos historiques montrent une dérive de +15 à +20 bpm dès que la séance est courue l'après-midi ou par forte chaleur. Programmez S2 et S3 le matin.
+            </p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-1">
+            <div class="font-bold text-sky-400">2. Respecter S4 / S8 + Isométrie genou</div>
+            <p class="text-slate-400">
+              Conservez impérativement les semaines allégées (S4, S8 et récup post-course) ainsi que le renforcement isométrique pour protéger votre genou.
+            </p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-1">
+            <div class="font-bold text-emerald-400">3. Allures recalculées en direct</div>
+            <p class="text-slate-400">
+              Dès que votre VMA évolue suite à l'import d'un nouveau fichier Polar .TCX ou à un test, toutes les cibles de ce tableau se mettent à jour automatiquement.
+            </p>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /#view-plans -->
+
   </div>
 
   <!-- Scripts de l'application -->
   <script src="data/default_sessions.js"></script>
   <script src="js/polar_parser.js"></script>
   <script src="js/pace_engine.js"></script>
+  <script src="js/training_plans.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
